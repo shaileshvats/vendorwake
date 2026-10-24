@@ -1,0 +1,116 @@
+
+===== auth0_ai =====
+-- auth0_ai.authorizers.async_authorization.async_authorization_request
+  class AsyncAuthorizationRequest(?)
+-- auth0_ai.authorizers.async_authorization.async_authorizer_base
+  class AsyncStorageValue(?)
+  def get_async_authorization_credentials() -> auth0_ai.credentials.TokenResponse | None
+  class AsyncAuthorizerBase(params: auth0_ai.authorizers.async_authorization.async_authorizer_params.AsyncAuthorizerParams[~ToolInput], auth0: auth0_ai.authorizers.types.Auth0ClientParams = None)
+    .get_credentials_polling(self, auth_request: auth0_ai.authorizers.async_authorization.async_authorization_request.AsyncAuthorizationRequest) -> auth0_ai.credentials.TokenResponse | None
+    .delete_auth_request(self)
+    .protect(self, get_context: Callable[~ToolInput, auth0_ai.authorizers.context.ToolCallContext], execute: Callable[~ToolInput, <built-in function any>]) -> Callable[~ToolInput, <built-in function any>]
+-- auth0_ai.authorizers.async_authorization.async_authorizer_params
+  class AsyncAuthorizerParams(?)
+-- auth0_ai.authorizers.context
+  class ToolCallContext(?)
+  def ns_from_context(auth_context: Literal['tool-call', 'tool', 'thread', 'agent'], call_context: auth0_ai.authorizers.context.ToolCallContext) -> list[str]
+-- auth0_ai.authorizers.fga_authorizer
+  class FGAAuthorizerCredentialsConfig(?)
+  class FGAAuthorizerCredentials(?)
+  class FGAAuthorizerParams(?)
+  class FGAAuthorizerOptions(?)
+  class FGAAuthorizer(params: Optional[auth0_ai.authorizers.fga_authorizer.FGAAuthorizerParams] = None)
+    .authorize(options: auth0_ai.authorizers.fga_authorizer.FGAAuthorizerOptions, params: Optional[auth0_ai.authorizers.fga_authorizer.FGAAuthorizerParams] = None) -> bool
+    .create(params: Optional[auth0_ai.authorizers.fga_authorizer.FGAAuthorizerParams] = None) -> Callable[[auth0_ai.authorizers.fga_authorizer.FGAAuthorizerOptions], Callable[~ToolInput, Callable[~ToolInput, Any]]]
+-- auth0_ai.authorizers.token_vault_authorizer
+  class AsyncStorageValue(?)
+  def get_credentials_from_token_vault() -> auth0_ai.credentials.TokenResponse | None
+  def get_access_token_from_token_vault() -> str | None
+  class TokenVaultAuthorizerParams(scopes: list[str], connection: str, refresh_token: Union[auth0_ai.authorizers.types.AuthorizerToolParameter[~ToolInput, str | None], Callable[~ToolInput, Union[str, NoneType, Awaitable[str | None]]], str, NoneType] = None, access_token: Union[auth0_ai.authorizers.types.AuthorizerToolParameter[~ToolInput, str | None], Callable[~ToolInput, Union[str, NoneType, Awaitable[str | None]]], str, NoneType] = None, login_hint: Optional[str] = None, store: Optional[auth0_ai.stores.store.Store] = None, credentials_context: Optional[Literal['tool-call', 'tool', 'thread', 'agent']] = 'thread', authorization_params: Optional[dict[str, str]] = None)
+  class TokenVaultAuthorizerBase(params: auth0_ai.authorizers.token_vault_authorizer.TokenVaultAuthorizerParams[~ToolInput], config: auth0_ai.authorizers.types.Auth0ClientParams = None)
+    .validate_token(self, token_response: Optional[auth0_ai.credentials.TokenResponse] = None)
+    .get_access_token_impl(self, *args: ToolInput.args, **kwargs: ToolInput.kwargs) -> auth0_ai.credentials.TokenResponse | None
+    .get_refresh_token(self, *args: ToolInput.args, **kwargs: ToolInput.kwargs)
+    .get_user_access_token(self, *args: ToolInput.args, **kwargs: ToolInput.kwargs)
+    .protect(self, get_context: Callable[~ToolInput, auth0_ai.authorizers.context.ToolCallContext], execute: Callable[~ToolInput, <built-in function any>]) -> Callable[~ToolInput, <built-in function any>]
+-- auth0_ai.authorizers.types
+  class Auth0ClientParams(?)
+  class AuthorizerToolParameter(value: Union[~TResult, Callable[~ToolInput, Union[~TResult, Awaitable[~TResult]]]])
+    .resolve(self, *args: ToolInput.args, **kwargs: ToolInput.kwargs) -> ~TResult
+-- auth0_ai.credentials
+  class AuthorizationDetails(?)
+  class TokenResponse(?)
+-- auth0_ai.interrupts.async_authorization_interrupts
+  class WithRequestData(request: auth0_ai.authorizers.async_authorization.async_authorization_request.AsyncAuthorizationRequest)
+  class AsyncAuthorizationInterrupt(message: str, code: str)
+  class AccessDeniedInterrupt(message: str, request: auth0_ai.authorizers.async_authorization.async_authorization_request.AsyncAuthorizationRequest)
+  class UserDoesNotHavePushNotificationsInterrupt(message: str)
+  class AuthorizationRequestExpiredInterrupt(message: str, request: auth0_ai.authorizers.async_authorization.async_authorization_request.AsyncAuthorizationRequest)
+  class AuthorizationPendingInterrupt(message: str, request: auth0_ai.authorizers.async_authorization.async_authorization_request.AsyncAuthorizationRequest)
+    .next_retry_interval(self) -> int
+  class AuthorizationPollingInterrupt(message: str, request: auth0_ai.authorizers.async_authorization.async_authorization_request.AsyncAuthorizationRequest, retry_after: int = None)
+    .next_retry_interval(self) -> int
+  class InvalidGrantInterrupt(message: str, request: auth0_ai.authorizers.async_authorization.async_authorization_request.AsyncAuthorizationRequest)
+-- auth0_ai.interrupts.auth0_interrupt
+  class Auth0Interrupt(message: str, code: str)
+    .to_json(self) -> Dict[str, Any]
+-- auth0_ai.interrupts.token_vault_interrupt
+  class TokenVaultInterrupt(message: str, connection: str, scopes: list[str], required_scopes: list[str], authorization_params: dict[str, str] = None)
+  class TokenVaultError(message: str)
+
+===== backboard =====
+-- backboard.models
+  class NoulQuestion(?)
+  class ChoiceQuestion(?)
+  class ScoreQuestion(?)
+  class SystemOneConfig(?)
+  class SystemOneResult(*, model: str, answers: Dict[str, Dict[str, Any]], usage: Dict[str, int]) -> None
+  class ImageConfig(?)
+  class VideoConfig(?)
+  class VideoModel(*, id: str, name: str, provider: str = 'openrouter', architecture: Optional[Dict[str, Any]] = None, supported_durations: Optional[List[int]] = None, supported_resolutions: Optional[List[str]] = None, supported_aspect_ratios: Optional[List[str]] = None, supported_sizes: Optional[List[str]] = None, supported_frame_images: Optional[List[str]] = None, generate_audio: Optional[bool] = None, seed: Optional[bool] = None, pricing_skus: Dict[str, Any] = <factory>, **extra_data: Any) -> None
+  class VideoModelsListResponse(*, models: List[backboard.models.VideoModel], total: int) -> None
+  class DocumentStatus(*values)
+  class MessageRole(*values)
+  class ToolCallFunction(*, name: str, arguments: str) -> None
+  class ToolCall(*, id: str, type: str, function: backboard.models.ToolCallFunction) -> None
+  class ToolParameterProperties(*, type: Optional[str] = None, description: Optional[str] = None, enum: Optional[List[str]] = None, properties: Optional[Dict[str, Any]] = None, items: Optional[Dict[str, Any]] = None, **extra_data: Any) -> None
+  class ToolParameters(*, type: str = 'object', properties: Dict[str, backboard.models.ToolParameterProperties] = <factory>, required: Optional[List[str]] = None) -> None
+  class FunctionDefinition(*, name: str, description: Optional[str] = None, parameters: backboard.models.ToolParameters) -> None
+  class ToolDefinition(*, type: str = 'function', function: Optional[backboard.models.FunctionDefinition] = None) -> None
+  class Assistant(*, assistant_id: uuid.UUID, name: str, description: Optional[str] = None, system_prompt: Optional[str] = None, tools: Optional[List[backboard.models.ToolDefinition]] = None, tok_k: Optional[int] = None, embedding_provider: Optional[str] = None, embedding_model_name: Optional[str] = None, embedding_dims: Optional[int] = None, custom_fact_extraction_prompt: Optional[str] = None, custom_update_memory_prompt: Optional[str] = None, created_at: datetime.datetime) -> None
+  class AssistantCloneResponse(*, assistant: backboard.models.Assistant, documents_cloned: int = 0, memories_cloned: int = 0) -> None
+  class AttachmentInfo(*, document_id: uuid.UUID, filename: str, status: str, file_size_bytes: Optional[int] = None, summary: Optional[str] = None) -> None
+  class Message(*, message_id: uuid.UUID, role: backboard.models.MessageRole, content: Optional[str] = None, created_at: datetime.datetime, status: Optional[str] = None, metadata_: Optional[Dict[str, Any]] = None, attachments: Optional[List[backboard.models.AttachmentInfo]] = None) -> None
+    .Config()
+  class LatestMessageInfo(*, metadata_: Optional[Dict[str, Any]] = None, model_provider: Optional[str] = None, model_name: Optional[str] = None, input_tokens: Optional[int] = None, output_tokens: Optional[int] = None, total_tokens: Optional[int] = None, created_at: Optional[datetime.datetime] = None) -> None
+    .Config()
+  class Thread(*, thread_id: uuid.UUID, created_at: datetime.datetime, messages: List[backboard.models.Message] = <factory>, metadata_: Optional[Dict[str, Any]] = None) -> None
+    .Config()
+  class Document(*, document_id: uuid.UUID, filename: str, status: backboard.models.DocumentStatus, created_at: datetime.datetime, status_message: Optional[str] = None, summary: Optional[str] = None, updated_at: Optional[datetime.datetime] = None, file_size_bytes: Optional[int] = None, total_tokens: Optional[int] = None, chunk_count: Optional[int] = None, processing_started_at: Optional[datetime.datetime] = None, processing_completed_at: Optional[datetime.datetime] = None, document_type: Optional[str] = None, metadata_: Optional[Dict[str, Any]] = None) -> None
+    .Config()
+  class ContextUsage(*, percent: float = 0, used_tokens: int = 0, context_limit: int = 0, summary_tokens: int = 0, model: str = 'unknown') -> None
+  class ChatMessagesResponse(*, messages: List[Dict[str, Any]], context_usage: Optional[backboard.models.ContextUsage] = None) -> None
+  class MessageResponse(*, system_one: Optional[backboard.models.SystemOneResult] = None, message: str, thread_id: uuid.UUID, content: Optional[str] = None, message_id: Optional[uuid.UUID] = None, role: Optional[backboard.models.MessageRole] = None, status: Optional[str] = None, tool_calls: Optional[List[backboard.models.ToolCall]] = None, run_id: Optional[str] = None, memory_operation_id: Optional[str] = None, retrieved_memories: Optional[List[Dict[str, Any]]] = None, retrieved_files: Optional[List[str]] = None, reasoning: Optional[str] = None, model_provider: Optional[str] = None, model_name: Optional[str] = None, input_tokens: Optional[int] = None, output_tokens: Optional[int] = None, total_tokens: Optional[int] = None, created_at: Optional[datetime.datetime] = None, attachments: Optional[List[backboard.models.AttachmentInfo]] = None, voice_records: Optional[Dict[str, Any]] = None, timestamp: datetime.datetime) -> None
+  class ToolOutput(*, tool_call_id: str, output: str) -> None
+  class SubmitToolOutputsRequest(*, tool_outputs: List[backboard.models.ToolOutput]) -> None
+  class ToolOutputsResponse(*, message: str, thread_id: uuid.UUID, run_id: str, content: Optional[str] = None, message_id: Optional[uuid.UUID] = None, role: Optional[backboard.models.MessageRole] = None, status: Optional[str] = None, tool_calls: Optional[List[backboard.models.ToolCall]] = None, memory_operation_id: Optional[str] = None, retrieved_memories: Optional[List[Dict[str, Any]]] = None, retrieved_files: Optional[List[str]] = None, reasoning: Optional[str] = None, model_provider: Optional[str] = None, model_name: Optional[str] = None, input_tokens: Optional[int] = None, output_tokens: Optional[int] = None, total_tokens: Optional[int] = None, created_at: Optional[datetime.datetime] = None, timestamp: datetime.datetime, context_usage: Optional[backboard.models.ContextUsage] = None) -> None
+  class Memory(*, id: str, content: str, metadata: Optional[Dict[str, Any]] = None, score: Optional[float] = None, created_at: Optional[str] = None, updated_at: Optional[str] = None) -> None
+  class MemoryCreate(*, content: str, metadata: Optional[Dict[str, Any]] = None) -> None
+  class MemoryUpdate(*, content: str, metadata: Optional[Dict[str, Any]] = None) -> None
+  class MemoriesListResponse(*, memories: List[backboard.models.Memory], total_count: int, page: Optional[int] = None, page_size: Optional[int] = None, total_pages: Optional[int] = None) -> None
+  class MemoryStats(*, total_memories: int = 0, last_updated: Optional[str] = None, limits: Optional[Dict[str, Any]] = None) -> None
+  class Model(*, description: Optional[str] = None, display_name: Optional[str] = None, architecture: Optional[Dict[str, Any]] = None, supported_parameters: Optional[List[str]] = None, video_capabilities: Optional[Dict[str, Any]] = None, realtime_capabilities: Optional[Dict[str, Any]] = None, system_one_capabilities: Optional[Dict[str, Any]] = None, supports_streaming: Optional[bool] = None, billing: Optional[Dict[str, Any]] = None, name: str, provider: str, model_type: str, context_limit: int, max_output_tokens: Optional[int] = None, supports_tools: Optional[bool] = None, supports_vision: Optional[bool] = None, supports_audio_input: Optional[bool] = None, supports_video_input: Optional[bool] = None, supports_image_output: Optional[bool] = None, supports_audio_output: Optional[bool] = None, supports_video_output: Optional[bool] = None, api_mode: Optional[str] = None, embedding_dimensions: Optional[int] = None, input_cost_per_1m_tokens: Optional[float] = None, cached_input_cost_per_1m_tokens: Optional[float] = None, image_input_cost_per_1m_tokens: Optional[float] = None, output_cost_per_1m_tokens: Optional[float] = None, image_output_cost_per_1m_tokens: Optional[float] = None, cost_per_image: Optional[float] = None, last_updated: Optional[datetime.datetime] = None) -> None
+  class ModelsListResponse(*, models: List[backboard.models.Model], total: int) -> None
+  class ImageModel(*, name: str, provider: str, model_type: str, context_limit: int, supports_vision: Optional[bool] = None, input_cost_per_1m_tokens: Optional[float] = None, image_input_cost_per_1m_tokens: Optional[float] = None, output_cost_per_1m_tokens: Optional[float] = None, image_output_cost_per_1m_tokens: Optional[float] = None, cost_per_image: Optional[float] = None, last_updated: Optional[datetime.datetime] = None) -> None
+  class ImageModelsListResponse(*, models: List[backboard.models.ImageModel], total: int) -> None
+  class EmbeddingModel(*, name: str, provider: str, embedding_dimensions: int, context_limit: int, last_updated: Optional[datetime.datetime] = None) -> None
+  class EmbeddingModelsListResponse(*, models: List[backboard.models.EmbeddingModel], total: int) -> None
+  class VoiceModel(*, name: str, provider: str, model_type: str, supports_streaming: Optional[bool] = None, input_cost_per_1m_tokens: Optional[float] = None, output_cost_per_1m_tokens: Optional[float] = None, audio_input_cost_per_1m_tokens: Optional[float] = None, cached_audio_input_cost_per_1m_tokens: Optional[float] = None, audio_output_cost_per_1m_tokens: Optional[float] = None, cost_per_1m_characters: Optional[float] = None, cost_per_minute: Optional[float] = None, supported_output_formats: Optional[str] = None, supported_input_formats: Optional[str] = None, last_updated: Optional[datetime.datetime] = None) -> None
+  class VoiceModelsListResponse(*, models: List[backboard.models.VoiceModel], total: int) -> None
+  class ProvidersListResponse(*, providers: List[str], total: int) -> None
+  class MemoryOperationStatus(*, operation_id: str, status: str, memory_ids: Optional[List[Any]] = None, result_count: Optional[int] = None, created_at: Optional[datetime.datetime] = None, updated_at: Optional[datetime.datetime] = None) -> None
+  class UsageEvent(*, id: int, client_id: int, ledger_id: Optional[int] = None, operation_id: Optional[str] = None, message_id: Optional[int] = None, model_name: Optional[str] = None, input_tokens: int, cached_input_tokens: int, output_tokens: int, audio_input_tokens: int = 0, audio_output_tokens: int = 0, audio_cached_tokens: int = 0, characters: int = 0, duration_seconds: float = 0.0, token_cost_usd: float, vector_reads: int, vector_cost_usd: float, memory_write_cost_usd: float = 0.0, total_cost_usd: float, subscription_credits_used: float = 0.0, regular_credits_used: float = 0.0, created_at: datetime.datetime) -> None
+  class UsageEventSummary(*, date: datetime.datetime, model: Optional[str] = None, input_tokens: int, output_tokens: int, vector_reads: int, vector_cost_usd: float, memory_write_cost_usd: float, credit_type: str, amount_deducted_usd: float) -> None
+  class PaginationMeta(*, page: int, page_size: int, total: int, total_pages: int) -> None
+  class PaginatedUsageResponse(*, data: List[backboard.models.UsageEvent], pagination: backboard.models.PaginationMeta) -> None
+  class PaginatedUsageSummaryResponse(*, data: List[backboard.models.UsageEventSummary], pagination: backboard.models.PaginationMeta) -> None

@@ -1,0 +1,509 @@
+{
+  "sdk_version": "2.73.0",
+  "names": {
+    "OP": {
+      "GEN_AI_CHAT": "gen_ai.chat",
+      "GEN_AI_CREATE_AGENT": "gen_ai.create_agent",
+      "GEN_AI_EMBEDDINGS": "gen_ai.embeddings",
+      "GEN_AI_EVALUATE": "gen_ai.evaluate",
+      "GEN_AI_EXECUTE_TOOL": "gen_ai.execute_tool",
+      "GEN_AI_HANDOFF": "gen_ai.handoff",
+      "GEN_AI_INVOKE_AGENT": "gen_ai.invoke_agent",
+      "GEN_AI_RESPONSES": "gen_ai.responses",
+      "GEN_AI_TEXT_COMPLETION": "gen_ai.text_completion"
+    },
+    "SPANDATA": {
+      "GEN_AI_AGENT_NAME": "gen_ai.agent.name",
+      "GEN_AI_CHOICE": "gen_ai.choice",
+      "GEN_AI_CONVERSATION_ID": "gen_ai.conversation.id",
+      "GEN_AI_EMBEDDINGS_INPUT": "gen_ai.embeddings.input",
+      "GEN_AI_FUNCTION_ID": "gen_ai.function_id",
+      "GEN_AI_INPUT_MESSAGES": "gen_ai.input.messages",
+      "GEN_AI_OPERATION_NAME": "gen_ai.operation.name",
+      "GEN_AI_OUTPUT_MESSAGES": "gen_ai.output.messages",
+      "GEN_AI_PIPELINE_NAME": "gen_ai.pipeline.name",
+      "GEN_AI_PROVIDER_NAME": "gen_ai.provider.name",
+      "GEN_AI_REQUEST_AVAILABLE_TOOLS": "gen_ai.request.available_tools",
+      "GEN_AI_REQUEST_FREQUENCY_PENALTY": "gen_ai.request.frequency_penalty",
+      "GEN_AI_REQUEST_MAX_TOKENS": "gen_ai.request.max_tokens",
+      "GEN_AI_REQUEST_MESSAGES": "gen_ai.request.messages",
+      "GEN_AI_REQUEST_MODEL": "gen_ai.request.model",
+      "GEN_AI_REQUEST_PRESENCE_PENALTY": "gen_ai.request.presence_penalty",
+      "GEN_AI_REQUEST_REASONING_LEVEL": "gen_ai.request.reasoning.level",
+      "GEN_AI_REQUEST_SEED": "gen_ai.request.seed",
+      "GEN_AI_REQUEST_TEMPERATURE": "gen_ai.request.temperature",
+      "GEN_AI_REQUEST_TOP_K": "gen_ai.request.top_k",
+      "GEN_AI_REQUEST_TOP_P": "gen_ai.request.top_p",
+      "GEN_AI_RESPONSE_FINISH_REASONS": "gen_ai.response.finish_reasons",
+      "GEN_AI_RESPONSE_ID": "gen_ai.response.id",
+      "GEN_AI_RESPONSE_MODEL": "gen_ai.response.model",
+      "GEN_AI_RESPONSE_STREAMING": "gen_ai.response.streaming",
+      "GEN_AI_RESPONSE_TEXT": "gen_ai.response.text",
+      "GEN_AI_RESPONSE_TIME_TO_FIRST_TOKEN": "gen_ai.response.time_to_first_token",
+      "GEN_AI_RESPONSE_TOOL_CALLS": "gen_ai.response.tool_calls",
+      "GEN_AI_SYSTEM": "gen_ai.system",
+      "GEN_AI_SYSTEM_INSTRUCTIONS": "gen_ai.system_instructions",
+      "GEN_AI_TOOL_CALL_ARGUMENTS": "gen_ai.tool.call.arguments",
+      "GEN_AI_TOOL_CALL_RESULT": "gen_ai.tool.call.result",
+      "GEN_AI_TOOL_DEFINITIONS": "gen_ai.tool.definitions",
+      "GEN_AI_TOOL_DESCRIPTION": "gen_ai.tool.description",
+      "GEN_AI_TOOL_INPUT": "gen_ai.tool.input",
+      "GEN_AI_TOOL_NAME": "gen_ai.tool.name",
+      "GEN_AI_TOOL_OUTPUT": "gen_ai.tool.output",
+      "GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS": "gen_ai.usage.cache_creation.input_tokens",
+      "GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS": "gen_ai.usage.cache_read.input_tokens",
+      "GEN_AI_USAGE_INPUT_TOKENS": "gen_ai.usage.input_tokens",
+      "GEN_AI_USAGE_INPUT_TOKENS_CACHED": "gen_ai.usage.input_tokens.cached",
+      "GEN_AI_USAGE_INPUT_TOKENS_CACHE_WRITE": "gen_ai.usage.input_tokens.cache_write",
+      "GEN_AI_USAGE_OUTPUT_TOKENS": "gen_ai.usage.output_tokens",
+      "GEN_AI_USAGE_OUTPUT_TOKENS_REASONING": "gen_ai.usage.output_tokens.reasoning",
+      "GEN_AI_USAGE_REASONING_OUTPUT_TOKENS": "gen_ai.usage.reasoning.output_tokens",
+      "GEN_AI_USAGE_TOTAL_TOKENS": "gen_ai.usage.total_tokens",
+      "GEN_AI_USER_MESSAGE": "gen_ai.user.message"
+    }
+  },
+  "captured": [
+    {
+      "level": "error",
+      "exception": {
+        "values": [
+          {
+            "mechanism": {
+              "type": "generic",
+              "handled": true
+            },
+            "module": null,
+            "type": "TimeoutError",
+            "value": "browserbase session timed out",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "spike_spans.py",
+                  "abs_path": "/w/sentry/spike_spans.py",
+                  "function": "main",
+                  "module": "__main__",
+                  "lineno": 62,
+                  "pre_context": [
+                    "                chat.set_data(SPANDATA.GEN_AI_USAGE_OUTPUT_TOKENS, 321)",
+                    "",
+                    "            with sentry_sdk.start_span(op=OP.GEN_AI_EXECUTE_TOOL, name=\"execute_tool fetch_source\") as tool:",
+                    "                tool.set_data(SPANDATA.GEN_AI_TOOL_NAME, \"fetch_source\")",
+                    "                try:"
+                  ],
+                  "context_line": "                    raise TimeoutError(\"browserbase session timed out\")",
+                  "post_context": [
+                    "                except TimeoutError as exc:",
+                    "                    tool.set_status(SPANSTATUS.DEADLINE_EXCEEDED)",
+                    "                    tool.set_data(\"error.type\", type(exc).__name__)",
+                    "                    sentry_sdk.capture_exception(exc)",
+                    ""
+                  ],
+                  "vars": {
+                    "model": "'gemma4:e4b-it-qat'",
+                    "agent": "<Span(op='gen_ai.invoke_agent', description:'invoke_agent extraction_agent', trace_id='2073460153a04574a5e8db55ea611b52', span_id='855939c8a460fd23', parent_span_id='bfc9514fc15923ab', sampled=True, origin='manual')>",
+                    "chat": "<Span(op='gen_ai.chat', description:'chat gemma4:e4b-it-qat', trace_id='2073460153a04574a5e8db55ea611b52', span_id='9c6d9764038175e3', parent_span_id='855939c8a460fd23', sampled=True, origin='manual')>",
+                    "tool": "<Span(op='gen_ai.execute_tool', description:'execute_tool fetch_source', trace_id='2073460153a04574a5e8db55ea611b52', span_id='a01946b41d7a938c', parent_span_id='855939c8a460fd23', sampled=True, origin='manual')>",
+                    "exc": "TimeoutError('browserbase session timed out')"
+                  },
+                  "in_app": true
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "event_id": "b2d72c70b62646a6990a892ac089779f",
+      "timestamp": "2026-10-24T19:20:29.335966Z",
+      "contexts": {
+        "trace": {
+          "trace_id": "2073460153a04574a5e8db55ea611b52",
+          "span_id": "a01946b41d7a938c",
+          "parent_span_id": "855939c8a460fd23",
+          "op": "gen_ai.execute_tool",
+          "description": "execute_tool fetch_source",
+          "origin": "manual",
+          "status": "deadline_exceeded",
+          "data": {
+            "thread.id": "281473058325696",
+            "thread.name": "MainThread"
+          }
+        },
+        "runtime": {
+          "name": "CPython",
+          "version": "3.12.15",
+          "build": "3.12.15 (main, Oct 21 2026, 01:13:23) [GCC 14.2.0]"
+        }
+      },
+      "transaction": "investigation demo",
+      "transaction_info": {
+        "source": "custom"
+      },
+      "breadcrumbs": {
+        "values": []
+      },
+      "extra": {
+        "sys.argv": [
+          "sentry/spike_spans.py"
+        ]
+      },
+      "modules": {
+        "pip": "25.0.1",
+        "opentelemetry-api": "1.45.1",
+        "temporalio": "1.34.0",
+        "attrs": "26.1.0",
+        "types-protobuf": "7.35.1.20260906",
+        "six": "1.17.0",
+        "cryptography": "50.0.2",
+        "propcache": "0.5.4",
+        "python-dateutil": "3.0.0",
+        "browserbase": "1.21.0",
+        "sentry-sdk": "2.73.0",
+        "typing_extensions": "4.16.0",
+        "multidict": "7.2.0",
+        "serpapi": "1.1.2",
+        "openfga-sdk": "0.9.9",
+        "tzdata": "2026.5",
+        "h11": "0.16.0",
+        "httpx": "0.28.1",
+        "typing-inspection": "0.4.4",
+        "idna": "3.20",
+        "pydantic": "2.11.7",
+        "distro": "1.9.0",
+        "aiosignal": "1.4.0",
+        "requests": "2.34.2",
+        "charset-normalizer": "3.5.2",
+        "urllib3": "2.8.0",
+        "cffi": "2.1.1",
+        "aiohttp": "3.14.5",
+        "protobuf": "7.36.2",
+        "pyjwt": "2.15.1",
+        "auth0-ai": "1.0.2",
+        "pycparser": "3.12",
+        "certifi": "2026.10.23",
+        "auth0-python": "4.13.0",
+        "sniffio": "1.3.1",
+        "httpcore": "1.0.9",
+        "pydantic_core": "2.33.2",
+        "backboard-sdk": "1.5.19",
+        "nexus-rpc": "1.4.0",
+        "anyio": "4.15.1",
+        "yarl": "1.25.1",
+        "annotated-types": "0.8.0",
+        "aiohappyeyeballs": "2.7.1",
+        "frozenlist": "1.8.0"
+      },
+      "environment": "production",
+      "server_name": "a1d379ca092b",
+      "sdk": {
+        "name": "sentry.python.aiohttp",
+        "version": "2.73.0",
+        "packages": [
+          {
+            "name": "pypi:sentry-sdk",
+            "version": "2.73.0"
+          }
+        ],
+        "integrations": [
+          "aiohttp",
+          "argv",
+          "atexit",
+          "dedupe",
+          "excepthook",
+          "httpx",
+          "logging",
+          "modules",
+          "stdlib",
+          "threading"
+        ]
+      },
+      "platform": "python"
+    },
+    {
+      "type": "transaction",
+      "transaction": "investigation demo",
+      "transaction_info": {
+        "source": "custom"
+      },
+      "contexts": {
+        "trace": {
+          "trace_id": "2073460153a04574a5e8db55ea611b52",
+          "span_id": "bfc9514fc15923ab",
+          "parent_span_id": null,
+          "op": "vendorwake.investigation",
+          "description": null,
+          "origin": "manual",
+          "data": {
+            "thread.id": "281473058325696",
+            "thread.name": "MainThread"
+          }
+        },
+        "runtime": {
+          "name": "CPython",
+          "version": "3.12.15",
+          "build": "3.12.15 (main, Oct 21 2026, 01:13:23) [GCC 14.2.0]"
+        }
+      },
+      "tags": {},
+      "timestamp": "2026-10-24T19:20:29.480742Z",
+      "start_timestamp": "2026-10-24T19:20:29.327282Z",
+      "spans": [],
+      "measurements": {},
+      "event_id": "03a2470a533847a3acf827534965ff29",
+      "extra": {
+        "sys.argv": [
+          "sentry/spike_spans.py"
+        ]
+      },
+      "environment": "production",
+      "server_name": "a1d379ca092b",
+      "sdk": {
+        "name": "sentry.python.aiohttp",
+        "version": "2.73.0",
+        "packages": [
+          {
+            "name": "pypi:sentry-sdk",
+            "version": "2.73.0"
+          }
+        ],
+        "integrations": [
+          "aiohttp",
+          "argv",
+          "atexit",
+          "dedupe",
+          "excepthook",
+          "httpx",
+          "logging",
+          "modules",
+          "stdlib",
+          "threading"
+        ]
+      },
+      "platform": "python"
+    },
+    {
+      "version": 2,
+      "items": [
+        {
+          "status": "ok",
+          "is_segment": false,
+          "trace_id": "2073460153a04574a5e8db55ea611b52",
+          "span_id": "855939c8a460fd23",
+          "name": "invoke_agent extraction_agent",
+          "start_timestamp": 1792869629.328742,
+          "end_timestamp": 1792869629.48072,
+          "parent_span_id": "bfc9514fc15923ab",
+          "attributes": {
+            "sentry.op": {
+              "value": "gen_ai.invoke_agent",
+              "type": "string"
+            },
+            "sentry.origin": {
+              "value": "manual",
+              "type": "string"
+            },
+            "thread.id": {
+              "value": "281473058325696",
+              "type": "string"
+            },
+            "thread.name": {
+              "value": "MainThread",
+              "type": "string"
+            },
+            "gen_ai.operation.name": {
+              "value": "invoke_agent",
+              "type": "string"
+            },
+            "gen_ai.agent.name": {
+              "value": "extraction_agent",
+              "type": "string"
+            },
+            "gen_ai.request.model": {
+              "value": "gemma4:e4b-it-qat",
+              "type": "string"
+            },
+            "sentry.environment": {
+              "value": "production",
+              "type": "string"
+            },
+            "server.address": {
+              "value": "a1d379ca092b",
+              "type": "string"
+            },
+            "sentry.segment.name": {
+              "value": "investigation demo",
+              "type": "string"
+            },
+            "sentry.segment.id": {
+              "value": "bfc9514fc15923ab",
+              "type": "string"
+            },
+            "sentry.sdk.name": {
+              "value": "sentry.python.aiohttp",
+              "type": "string"
+            },
+            "sentry.sdk.version": {
+              "value": "2.73.0",
+              "type": "string"
+            },
+            "process.runtime.name": {
+              "value": "CPython",
+              "type": "string"
+            },
+            "process.runtime.version": {
+              "value": "3.12.15",
+              "type": "string"
+            }
+          }
+        },
+        {
+          "status": "ok",
+          "is_segment": false,
+          "trace_id": "2073460153a04574a5e8db55ea611b52",
+          "span_id": "9c6d9764038175e3",
+          "name": "chat gemma4:e4b-it-qat",
+          "start_timestamp": 1792869629.328864,
+          "end_timestamp": 1792869629.328887,
+          "parent_span_id": "855939c8a460fd23",
+          "attributes": {
+            "sentry.op": {
+              "value": "gen_ai.chat",
+              "type": "string"
+            },
+            "sentry.origin": {
+              "value": "manual",
+              "type": "string"
+            },
+            "thread.id": {
+              "value": "281473058325696",
+              "type": "string"
+            },
+            "thread.name": {
+              "value": "MainThread",
+              "type": "string"
+            },
+            "gen_ai.operation.name": {
+              "value": "chat",
+              "type": "string"
+            },
+            "gen_ai.request.model": {
+              "value": "gemma4:e4b-it-qat",
+              "type": "string"
+            },
+            "gen_ai.system": {
+              "value": "ollama",
+              "type": "string"
+            },
+            "gen_ai.usage.input_tokens": {
+              "value": 1234,
+              "type": "integer"
+            },
+            "gen_ai.usage.output_tokens": {
+              "value": 321,
+              "type": "integer"
+            },
+            "sentry.environment": {
+              "value": "production",
+              "type": "string"
+            },
+            "server.address": {
+              "value": "a1d379ca092b",
+              "type": "string"
+            },
+            "sentry.segment.name": {
+              "value": "investigation demo",
+              "type": "string"
+            },
+            "sentry.segment.id": {
+              "value": "bfc9514fc15923ab",
+              "type": "string"
+            },
+            "sentry.sdk.name": {
+              "value": "sentry.python.aiohttp",
+              "type": "string"
+            },
+            "sentry.sdk.version": {
+              "value": "2.73.0",
+              "type": "string"
+            },
+            "process.runtime.name": {
+              "value": "CPython",
+              "type": "string"
+            },
+            "process.runtime.version": {
+              "value": "3.12.15",
+              "type": "string"
+            }
+          }
+        },
+        {
+          "status": "error",
+          "is_segment": false,
+          "trace_id": "2073460153a04574a5e8db55ea611b52",
+          "span_id": "a01946b41d7a938c",
+          "name": "execute_tool fetch_source",
+          "start_timestamp": 1792869629.328918,
+          "end_timestamp": 1792869629.480648,
+          "parent_span_id": "855939c8a460fd23",
+          "attributes": {
+            "sentry.op": {
+              "value": "gen_ai.execute_tool",
+              "type": "string"
+            },
+            "sentry.origin": {
+              "value": "manual",
+              "type": "string"
+            },
+            "thread.id": {
+              "value": "281473058325696",
+              "type": "string"
+            },
+            "thread.name": {
+              "value": "MainThread",
+              "type": "string"
+            },
+            "gen_ai.tool.name": {
+              "value": "fetch_source",
+              "type": "string"
+            },
+            "error.type": {
+              "value": "TimeoutError",
+              "type": "string"
+            },
+            "sentry.environment": {
+              "value": "production",
+              "type": "string"
+            },
+            "server.address": {
+              "value": "a1d379ca092b",
+              "type": "string"
+            },
+            "sentry.segment.name": {
+              "value": "investigation demo",
+              "type": "string"
+            },
+            "sentry.segment.id": {
+              "value": "bfc9514fc15923ab",
+              "type": "string"
+            },
+            "sentry.sdk.name": {
+              "value": "sentry.python.aiohttp",
+              "type": "string"
+            },
+            "sentry.sdk.version": {
+              "value": "2.73.0",
+              "type": "string"
+            },
+            "process.runtime.name": {
+              "value": "CPython",
+              "type": "string"
+            },
+            "process.runtime.version": {
+              "value": "3.12.15",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
