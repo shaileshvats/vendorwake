@@ -1,0 +1,12 @@
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101"]
+
+[lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "E501"]
+
+[lint.isort]
+known-first-party = ["envfile", "auth0_setup", "deploy_render", "tiger_bootstrap", "preflight", "launch"]

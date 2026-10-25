@@ -10,6 +10,7 @@ return no rows (fail closed).
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -32,6 +33,14 @@ _SET_SUBJECT_SQL = text("SELECT set_config('app.current_auth_subject', :sub, tru
 
 PING_TIMEOUT_SECONDS = 2
 
+#: Connection URL of the ``vendorwake_worker`` role (global writes: vendors, snapshots, changes, embeddings).
+#: Read from the process environment only (not Settings / .env), so only the worker process ever has it.
+WORKER_DATABASE_URL_ENV = "VW_WORKER_DATABASE_URL"
+
+
+class WorkerDatabaseNotConfiguredError(RuntimeError):
+    """VW_WORKER_DATABASE_URL is not set, so global (upstream) data cannot be written."""
+
 
 @lru_cache(maxsize=1)
 def get_engine() -> Engine:
@@ -43,6 +52,28 @@ def get_engine() -> Engine:
 @lru_cache(maxsize=1)
 def get_sessionmaker() -> sessionmaker[Session]:
     return sessionmaker(bind=get_engine(), expire_on_commit=False)
+
+
+@lru_cache(maxsize=1)
+def get_worker_engine() -> Engine:
+    """Engine for the worker role. It may write the global tables and cannot see any tenant table."""
+    url = os.environ.get(WORKER_DATABASE_URL_ENV, "").strip()
+    if not url:
+        raise WorkerDatabaseNotConfiguredError(f"{WORKER_DATABASE_URL_ENV} is not set")
+    return create_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 5})
+
+
+@contextmanager
+def worker_session() -> Iterator[Session]:
+    """Session on the worker role for global (upstream) data. Commits on exit, rolls back on error."""
+    session = Session(bind=get_worker_engine(), expire_on_commit=False)
+    with session:
+        try:
+            yield session
+            session.commit()
+        except BaseException:
+            session.rollback()
+            raise
 
 
 @lru_cache(maxsize=8)

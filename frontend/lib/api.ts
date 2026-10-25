@@ -38,6 +38,9 @@ function kindForStatus(status: number): ApiErrorKind {
   if (status === 401) return "unauthorized";
   if (status === 403) return "forbidden";
   if (status === 404) return "not_found";
+  if (status === 409) return "conflict";
+  if (status === 422) return "validation_error";
+  if (status === 503) return "service_unavailable";
   if (status >= 500) return "server_error";
   return "http_error";
 }
@@ -58,6 +61,20 @@ async function getBearerToken(): Promise<{ ok: true; token: string } | { ok: fal
     if (code === "missing_session") return fail("no_session", "You are not signed in.");
     return fail("token_error", `Could not obtain an access token (${code}).`);
   }
+}
+
+/** Reads `{"error": {"code", "message"}}` (the API's error shape) or a FastAPI `{"detail": str}`. */
+function parseErrorBody(data: unknown): { code?: string; message?: string } {
+  if (!data || typeof data !== "object") return {};
+  if ("error" in data && data.error && typeof data.error === "object") {
+    const error = data.error as Record<string, unknown>;
+    return {
+      code: typeof error.code === "string" ? error.code : undefined,
+      message: typeof error.message === "string" ? error.message : undefined,
+    };
+  }
+  if ("detail" in data && typeof data.detail === "string") return { message: data.detail };
+  return {};
 }
 
 /**
@@ -103,16 +120,18 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   if (!response.ok) {
-    const detail =
-      data && typeof data === "object" && "detail" in data && typeof data.detail === "string"
-        ? `: ${data.detail}`
-        : "";
-    return fail(kindForStatus(response.status), `The API responded with HTTP ${response.status}${detail}.`, {
+    const { code, message } = parseErrorBody(data);
+    const detail = message ? `: ${message}` : "";
+    return fail(kindForStatus(response.status), `The API responded with HTTP ${response.status}${detail}`, {
       status: response.status,
+      code,
       body: data,
     });
   }
 
+  if (data === undefined && response.status === 204) {
+    return { ok: true, data: undefined as T, status: response.status };
+  }
   if (data === undefined || (validate && !validate(data))) {
     return fail("invalid_response", "The API returned an unexpected response.", { status: response.status });
   }

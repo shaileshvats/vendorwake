@@ -4,11 +4,15 @@ Next.js 16 (App Router, Turbopack) + TypeScript (strict) + Tailwind CSS v4, with
 `@auth0/nextjs-auth0` v4. All API calls are made server-side; the browser never sees an access token.
 
 ```
-app/                 routes: / (landing), (app)/dashboard, repositories, changes, investigations, settings
-components/          app shell, sidebar nav, user menu, panels, empty states, ImpactStatusBadge, SystemStatus
+app/                 routes: / (landing), (app)/dashboard, repositories[/id], vendors, changes[/id],
+                     investigations[/id], settings, settings/security
+components/          app shell, panels, status pills, evidence graph (plain SVG), diff viewer, forms
 lib/auth0.ts         Auth0Client (requests an access token for AUTH0_AUDIENCE)
 lib/api.ts           typed server-side fetch: Bearer token, timeouts, error mapping (never throws)
 lib/endpoints.ts     GET /api/health, GET /api/me with runtime response validation
+lib/vendorwake.ts    typed wrappers for every endpoint in docs/api-contract.md
+lib/actions.ts       Server Actions for all mutations (token attached server-side)
+test/                mock API + session-cookie script for local UI checks (not part of the app)
 proxy.ts             Next.js 16 proxy (formerly middleware): mounts /auth/* and refreshes tokens
 types/               API and session types
 ```
@@ -96,6 +100,14 @@ used server-side.
 - **ImpactStatusBadge** (`components/impact-status-badge.tsx`) shows each impact status (confirmed,
   potential, unaffected, unknown) with a distinct icon shape, a text label and an Okabe-Ito hue,
   so it never relies on color alone.
+
+## Checking the UI against a mock API
+
+`test/mock-api.mjs` implements the contract with fixture data (stripe-python 16.0.0 scenario);
+`test/session-cookie.mjs` mints a signed-in `__session` cookie with `@auth0/nextjs-auth0/testing`.
+Run both in one container after `npm run build`, with dummy `AUTH0_*` values, `AUTH0_SECRET` set,
+and `API_BASE_URL=http://127.0.0.1:8010`. Use `127.0.0.1` rather than `localhost` in the browser if
+another app on `localhost` already set a `__session` cookie (cookies are not port-scoped).
 
 ## Not tested
 

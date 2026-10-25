@@ -42,6 +42,16 @@ export function RepositoryIcon(props: IconProps) {
   );
 }
 
+export function VendorsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3 8.5 10 4l7 4.5" />
+      <path d="M5 8v7.5h10V8" />
+      <path d="M8.5 15.5v-4h3v4" />
+    </Icon>
+  );
+}
+
 export function ChangesIcon(props: IconProps) {
   return (
     <Icon {...props}>

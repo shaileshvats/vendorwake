@@ -1,0 +1,18 @@
+# Test image for backend/vendorwake/integrations (incl. the real Entire CLI session test).
+# Entire CLI comes from Entire's official Linux install script, as in spikes/entire/Dockerfile.
+# Build from the repo root:
+#   docker build -t vw-integrations-test -f tools/entire-agent-vendorwake/Dockerfile.test backend
+# Run (offline):
+#   docker run --rm --network none -v "$PWD":/repo vw-integrations-test \
+#     python -m pytest -q tests/unit/integrations
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL https://entire.io/install.sh | bash
+ENV PATH="/root/.local/bin:/root/.entire/bin:${PATH}"
+COPY pyproject.toml /tmp/pyproject.toml
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -c "import tomllib; d = tomllib.load(open('/tmp/pyproject.toml', 'rb'))['project']; open('/tmp/req.txt', 'w').write('\n'.join(d['dependencies'] + d['optional-dependencies']['dev']))" \
+    && pip install -r /tmp/req.txt backboard-sdk==1.5.19 "websockets>=13"
+WORKDIR /repo/backend
+ENV PYTHONPATH=/repo/backend PYTHONDONTWRITEBYTECODE=1

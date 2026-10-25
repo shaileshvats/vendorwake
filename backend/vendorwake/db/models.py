@@ -2,8 +2,10 @@
 
 Two kinds of tables:
 
-* Global upstream data (vendors, monitoring_sources, vendor_changes): public information shared by every
-  tenant. The app role may only read it; a worker role will write it (later milestone).
+* Global upstream data (vendors, monitoring_sources, vendor_changes, source_snapshots, discovery_queries,
+  change_embeddings): public information shared by every tenant. The app role may only read it; the
+  ``vendorwake_worker`` role (0002) writes it. Monitoring status changes from the API go through the
+  narrow SECURITY DEFINER function ``vendorwake_set_vendor_monitoring``.
 * Tenant-owned data (users and everything below repositories): every row carries a denormalised
   ``user_id`` so that row-level security policies are a single indexed equality check.
 
@@ -25,13 +27,17 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
+    Integer,
     Numeric,
+    PrimaryKeyConstraint,
     String,
     Text,
     UniqueConstraint,
@@ -44,7 +50,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from vendorwake.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 REPOSITORY_PROVIDERS = ("github",)
-VENDOR_MONITORING_STATUSES = ("active", "paused", "disabled")
+VENDOR_MONITORING_STATUSES = ("active", "paused", "off", "disabled")
 SOURCE_TYPES = (
     "changelog",
     "documentation",
@@ -54,10 +60,28 @@ SOURCE_TYPES = (
     "status_page",
     "other",
 )
-CHANGE_TYPES = ("breaking", "deprecation", "feature", "fix", "security", "documentation", "other")
+# 0001 values plus the contract's ChangeType (vendorwake.domain.contracts).
+CHANGE_TYPES = (
+    "breaking",
+    "deprecation",
+    "feature",
+    "fix",
+    "security",
+    "documentation",
+    "other",
+    "removal",
+    "rename",
+    "schema_change",
+    "auth_change",
+    "rate_limit",
+    "sdk_version",
+    "behavioral",
+    "additive",
+)
 SEVERITIES = ("critical", "high", "medium", "low", "info", "unknown")
-INVESTIGATION_STATUSES = ("queued", "running", "completed", "failed", "cancelled")
+INVESTIGATION_STATUSES = ("queued", "running", "waiting_approval", "completed", "failed", "cancelled")
 IMPACT_STATUSES = ("confirmed", "potential", "unaffected", "unknown")
+# 0001 values plus the contract's EvidenceKind.
 EVIDENCE_TYPES = (
     "code_reference",
     "dependency_manifest",
@@ -65,7 +89,13 @@ EVIDENCE_TYPES = (
     "changelog",
     "test_result",
     "other",
+    "vendor_source",
+    "search_result",
+    "dependency",
+    "version_check",
+    "model_inference",
 )
+# 0001 values plus the contract's Recommendation.recommendation_type.
 RECOMMENDATION_TYPES = (
     "code_change",
     "dependency_upgrade",
@@ -73,6 +103,9 @@ RECOMMENDATION_TYPES = (
     "monitoring",
     "no_action",
     "other",
+    "dependency_pin",
+    "review",
+    "test",
 )
 VERIFICATION_STATUSES = (
     "pending",
@@ -83,6 +116,14 @@ VERIFICATION_STATUSES = (
     "requires_human_review",
 )
 APPROVAL_STATUSES = ("pending", "approved", "dismissed")
+ANALYSIS_STATUSES = ("pending", "running", "completed", "failed")
+FETCHED_VIA = ("http", "browserbase")
+STEP_STATUSES = ("completed", "failed")
+SNAPSHOT_EXTRACTION_STATUSES = ("change", "no_change", "failed")
+
+#: Fixed dimension of change embeddings (BAAI/bge-small-en-v1.5). Must equal settings.embedding_dim (the
+#: worker refuses to start otherwise). Changing it needs a migration.
+EMBEDDING_DIM = 384
 
 #: Tables protected by row-level security (policy column in parentheses: users -> id, others -> user_id).
 TENANT_TABLES = (
@@ -93,9 +134,17 @@ TENANT_TABLES = (
     "impact_evidence",
     "recommendations",
     "agent_sessions",
+    "investigation_steps",
 )
-#: Shared upstream tables, readable by every tenant.
-GLOBAL_TABLES = ("vendors", "monitoring_sources", "vendor_changes")
+#: Shared upstream tables, readable by every tenant and written only by the worker role.
+GLOBAL_TABLES = (
+    "vendors",
+    "monitoring_sources",
+    "vendor_changes",
+    "source_snapshots",
+    "discovery_queries",
+    "change_embeddings",
+)
 
 
 def _in(column: str, values: tuple[str, ...]) -> str:
@@ -134,6 +183,7 @@ class Repository(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint("user_id", "provider", "external_repository_id"),
         UniqueConstraint("id", "user_id"),  # target of child composite FKs
         CheckConstraint(_in("provider", REPOSITORY_PROVIDERS), name="provider"),
+        CheckConstraint(_in("analysis_status", ANALYSIS_STATUSES), name="analysis_status"),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -143,6 +193,16 @@ class Repository(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     external_repository_id: Mapped[str] = mapped_column(String(255), nullable=False)
     repository_name: Mapped[str] = mapped_column(String(512), nullable=False)
     default_branch: Mapped[str | None] = mapped_column(String(255))
+    # 0002: what to analyse and the latest result. ``inventory`` is a contracts.RepositoryInventory.
+    owner: Mapped[str | None] = mapped_column(String(255))
+    name: Mapped[str | None] = mapped_column(String(255))
+    ref: Mapped[str] = mapped_column(String(255), nullable=False, server_default=text("'main'"))
+    subpath: Mapped[str] = mapped_column(String(1024), nullable=False, server_default=text("''"))
+    analysis_status: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'pending'"))
+    analysis_error: Mapped[str | None] = mapped_column(String(255))
+    commit_sha: Mapped[str | None] = mapped_column(String(64))
+    inventory: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    last_analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 # --------------------------------------------------------------------------------------------------
@@ -159,9 +219,11 @@ class Vendor(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     website: Mapped[str | None] = mapped_column(String(2048))
     category: Mapped[str | None] = mapped_column(String(64))
-    monitoring_status: Mapped[str] = mapped_column(
-        String(32), nullable=False, server_default=text("'active'")
+    monitoring_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'off'"))
+    official_domains: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
     )
+    schedule_id: Mapped[str | None] = mapped_column(String(255))
 
 
 class MonitoringSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -185,7 +247,9 @@ class VendorChange(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint(_in("change_type", CHANGE_TYPES), name="change_type"),
         CheckConstraint(_in("severity", SEVERITIES), name="severity"),
+        CheckConstraint(_in("fetched_via", FETCHED_VIA), name="fetched_via"),
         Index(None, "vendor_id", "detected_at"),
+        UniqueConstraint("vendor_id", "content_sha256"),
     )
 
     vendor_id: Mapped[uuid.UUID] = mapped_column(
@@ -205,6 +269,101 @@ class VendorChange(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     source_url: Mapped[str | None] = mapped_column(Text)
+    # 0002: the extraction that produced this change and where its source text came from.
+    package: Mapped[str | None] = mapped_column(String(255))
+    version: Mapped[str | None] = mapped_column(String(128))
+    content_sha256: Mapped[str | None] = mapped_column(String(64))
+    snapshot_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # source_snapshots.id (no FK)
+    retrieved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    fetched_via: Mapped[str | None] = mapped_column(String(16))
+    browser_session_id: Mapped[str | None] = mapped_column(String(255))
+    is_official: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    change_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    requires_human_review: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    extraction: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # contracts.ChangeExtraction
+    grounding: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # contracts.GroundingReport
+    grounding_ok: Mapped[bool | None] = mapped_column(Boolean)
+    model_calls: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    discovery: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+
+
+class SourceSnapshot(Base):
+    """A fetched source document. TimescaleDB hypertable partitioned on ``retrieved_at``.
+
+    Rows are inserted only when the content hash differs from the latest snapshot of the same URL. Nothing
+    references this table with a foreign key (hypertables are not FK targets); vendor_changes keeps the id.
+    """
+
+    __tablename__ = "source_snapshots"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", "retrieved_at"),  # a hypertable's unique keys must include the time column
+        CheckConstraint(_in("fetched_via", FETCHED_VIA), name="fetched_via"),
+        CheckConstraint(_in("extraction_status", SNAPSHOT_EXTRACTION_STATUSES), name="extraction_status"),
+        Index(None, "url", "retrieved_at"),
+        Index(None, "vendor_id", "retrieved_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), server_default=text("gen_random_uuid()"))
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vendors.id", ondelete="CASCADE"), nullable=False
+    )
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("monitoring_sources.id", ondelete="SET NULL")
+    )
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)  # extracted page text
+    title: Mapped[str | None] = mapped_column(Text)
+    fetched_via: Mapped[str] = mapped_column(String(16), nullable=False)
+    browser_session_id: Mapped[str | None] = mapped_column(String(255))
+    screenshot_ref: Mapped[str | None] = mapped_column(Text)
+    # Set once the extraction model has seen this snapshot, so it is never sent to the model twice.
+    extraction_status: Mapped[str | None] = mapped_column(String(16))
+    change_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class DiscoveryQuery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One search-provider query issued by discovery, with its (official and unofficial) results."""
+
+    __tablename__ = "discovery_queries"
+    __table_args__ = (Index(None, "vendor_id", "executed_at"),)
+
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vendors.id", ondelete="CASCADE"), nullable=False
+    )
+    query: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'serpapi'"))
+    executed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    result_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    results: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    workflow_id: Mapped[str | None] = mapped_column(String(255))
+    error: Mapped[str | None] = mapped_column(String(255))
+
+
+class ChangeEmbedding(TimestampMixin, Base):
+    """Embedding of a vendor change, for "related changes" (cosine distance, HNSW index)."""
+
+    __tablename__ = "change_embeddings"
+    __table_args__ = (
+        Index(
+            "ix_change_embeddings_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )
+
+    change_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("vendor_changes.id", ondelete="CASCADE"), primary_key=True
+    )
+    model: Mapped[str] = mapped_column(String(255), nullable=False)
+    embedding: Mapped[Any] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
 
 
 # --------------------------------------------------------------------------------------------------
@@ -259,6 +418,40 @@ class Investigation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     summary: Mapped[str | None] = mapped_column(Text)
     temporal_workflow_id: Mapped[str | None] = mapped_column(String(255), unique=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # 0002: the persisted outcome. The DB is the source of truth: the API never needs workflow history.
+    report: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # contracts.ImpactAssessment
+    timeline: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    temporal_run_id: Mapped[str | None] = mapped_column(String(255))
+    sentry_trace_id: Mapped[str | None] = mapped_column(String(64))
+    backboard_thread_id: Mapped[str | None] = mapped_column(String(255))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(String(255))
+
+
+class InvestigationStep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Persisted output of one investigation step, keyed by (investigation_id, step).
+
+    Activities check this before doing expensive work (model calls, verification), so a retried activity, a
+    restarted worker or a re-run workflow reuses the stored result instead of repeating it.
+    """
+
+    __tablename__ = "investigation_steps"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["investigation_id", "user_id"],
+            ["investigations.id", "investigations.user_id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("investigation_id", "step"),
+        CheckConstraint(_in("status", STEP_STATUSES), name="status"),
+    )
+
+    user_id: Mapped[uuid.UUID] = _tenant_user_id()
+    investigation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    step: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    output: Mapped[Any | None] = mapped_column(JSONB)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ImpactEvidence(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -281,6 +474,11 @@ class ImpactEvidence(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     content_reference: Mapped[str | None] = mapped_column(Text)
     explanation: Mapped[str | None] = mapped_column(Text)
     confidence: Mapped[Decimal | None] = mapped_column(Confidence)
+    # 0002: contracts.EvidenceItem fields (content_reference = content_sha256, explanation = description)
+    deterministic: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    line: Mapped[int | None] = mapped_column(Integer)
+    quote: Mapped[str | None] = mapped_column(Text)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
 
 
 class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -294,6 +492,7 @@ class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint(_in("recommendation_type", RECOMMENDATION_TYPES), name="recommendation_type"),
         CheckConstraint(_in("verification_status", VERIFICATION_STATUSES), name="verification_status"),
         CheckConstraint(_in("approval_status", APPROVAL_STATUSES), name="approval_status"),
+        UniqueConstraint("investigation_id", "position"),
     )
 
     user_id: Mapped[uuid.UUID] = _tenant_user_id()
@@ -305,6 +504,12 @@ class Recommendation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(32), nullable=False, server_default=text("'pending'")
     )
     approval_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default=text("'pending'"))
+    # 0002: the full recommendation. Generating a patch never applies it.
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    file_path: Mapped[str | None] = mapped_column(Text)
+    patch: Mapped[str | None] = mapped_column(Text)
+    verification: Mapped[dict[str, Any] | None] = mapped_column(JSONB)  # contracts.VerificationResult
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class AgentSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -317,6 +522,7 @@ class AgentSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             ["investigations.id", "investigations.user_id"],
             ondelete="CASCADE",
         ),
+        UniqueConstraint("investigation_id", "provider"),
     )
 
     user_id: Mapped[uuid.UUID] = _tenant_user_id()
@@ -327,3 +533,10 @@ class AgentSession(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     session_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
+    # 0002: Entire checkpoint details
+    checkpoint_id: Mapped[str | None] = mapped_column(String(64))
+    commit_sha: Mapped[str | None] = mapped_column(String(64))
+    model: Mapped[str | None] = mapped_column(String(255))
+    transcript_excerpt: Mapped[str | None] = mapped_column(Text)
+    url: Mapped[str | None] = mapped_column(Text)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

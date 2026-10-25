@@ -1,0 +1,98 @@
+# syntax=docker/dockerfile:1
+# Vendorwake combined image: FastAPI API + Temporal worker (+ optional embedded Temporal dev server).
+#
+# BUILD CONTEXT IS THE REPOSITORY ROOT (it needs tools/ and scripts/container/ as well as backend/):
+#   docker build -f backend/Dockerfile.worker -t vendorwake-app .
+#
+# Render runs this as the free web service `vendorwake-api` (free tier has no background workers);
+# the entrypoint scripts/container/launch.py starts uvicorn and `python -m vendorwake.worker` and exits
+# if either dies. Run one process alone by overriding the command, e.g. `python -m vendorwake.worker`.
+#
+# Only explicit paths are COPYed, so a stray .env in the context never reaches the image.
+FROM python:3.12-slim
+
+ARG ENTIRE_VERSION=0.12.0
+ARG TEMPORAL_CLI_VERSION=1.9.1
+ARG INSTALL_TEMPORAL_CLI=true
+ARG TARGETARCH
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_ROOT_USER_ACTION=ignore \
+    GIT_TERMINAL_PROMPT=0
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Entire CLI from the official install script (https://entire.io/install.sh), pinned with --version.
+# The script verifies the archive against the release's checksums.txt and installs into
+# $HOME/.local/bin; HOME is pointed at /opt/entire so the binaries are not under /root.
+RUN curl -fsSL --retry 3 https://entire.io/install.sh -o /tmp/entire-install.sh \
+    && HOME=/opt/entire bash /tmp/entire-install.sh --version "${ENTIRE_VERSION}" \
+    && rm /tmp/entire-install.sh \
+    && chmod -R a+rX /opt/entire \
+    && /opt/entire/.local/bin/entire version
+
+# Temporal CLI (only used for VW_TEMPORAL_EMBEDDED=true), from the official GitHub release, pinned
+# and checked against the release's checksums.txt.
+# https://docs.temporal.io/cli/setup-cli  https://github.com/temporalio/cli/releases
+RUN if [ "${INSTALL_TEMPORAL_CLI}" = "true" ]; then \
+        arch="${TARGETARCH:-$(dpkg --print-architecture)}" \
+        && file="temporal_cli_${TEMPORAL_CLI_VERSION}_linux_${arch}.tar.gz" \
+        && base="https://github.com/temporalio/cli/releases/download/v${TEMPORAL_CLI_VERSION}" \
+        && cd /tmp \
+        && curl -fsSL --retry 3 -o "$file" "$base/$file" \
+        && curl -fsSL --retry 3 -o checksums.txt "$base/checksums.txt" \
+        && grep " ${file}\$" checksums.txt | sha256sum -c - \
+        && tar -xzf "$file" temporal \
+        && install -m 0755 temporal /usr/local/bin/temporal \
+        && rm -f "$file" checksums.txt temporal \
+        && temporal --version; \
+    fi
+
+RUN groupadd --system --gid 10001 vendorwake \
+    && useradd --system --uid 10001 --gid vendorwake --create-home --home-dir /home/vendorwake \
+        --shell /usr/sbin/nologin vendorwake
+
+WORKDIR /app
+
+# Dependencies first, from pyproject.toml alone, so code changes don't reinstall them.
+COPY backend/pyproject.toml ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -c "import tomllib; d = tomllib.load(open('pyproject.toml', 'rb'))['project']['dependencies']; open('/tmp/requirements.txt', 'w').write('\n'.join(d))" \
+    && pip install -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt
+
+COPY backend/README.md backend/alembic.ini ./
+COPY backend/migrations ./migrations
+COPY backend/vendorwake ./vendorwake
+RUN --mount=type=cache,target=/root/.cache/pip pip install --no-deps . \
+    && python -c "import vendorwake.api.app"
+
+# Entire agent adapter (protocol v1) and the process launcher.
+# tools/entire-agent-vendorwake/ holds the executable of the same name; the directory goes on PATH.
+COPY --chmod=0755 tools/entire-agent-vendorwake/ /opt/entire-agent-vendorwake/
+COPY --chmod=0755 scripts/container/launch.py /usr/local/bin/vendorwake-launch
+
+ENV PATH="/opt/entire/.local/bin:/opt/entire-agent-vendorwake:${PATH}" \
+    HOME=/home/vendorwake \
+    PORT=8000
+
+USER vendorwake
+
+# Fail the build if a required tool is missing from PATH (run as the app user, so nothing in its
+# home directory ends up owned by root).
+RUN for c in git entire entire-agent-vendorwake vendorwake-launch; do \
+        command -v "$c" >/dev/null || { echo "missing on PATH: $c" >&2; exit 1; }; \
+    done \
+    && entire version \
+    && if command -v temporal >/dev/null; then temporal --version; fi
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["python", "-c", "import os, sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:%s/api/health' % os.environ.get('PORT', '8000'), timeout=4).status == 200 else 1)"]
+
+CMD ["vendorwake-launch"]

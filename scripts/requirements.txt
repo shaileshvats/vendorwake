@@ -1,0 +1,4 @@
+# Provisioning scripts (python 3.12). temporalio is optional: preflight falls back to a TLS probe.
+httpx>=0.28
+psycopg[binary]>=3.2
+temporalio>=1.9

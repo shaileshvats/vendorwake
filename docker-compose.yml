@@ -35,6 +35,8 @@ services:
     env_file: .env
     environment:
       VW_MIGRATION_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vendorwake_owner}:${POSTGRES_PASSWORD:-change-me-owner}@postgres:5432/${POSTGRES_DB:-vendorwake}
+      # Migration 0002 sets the vendorwake_worker role's password from this.
+      VW_WORKER_DB_PASSWORD: ${VW_WORKER_DB_PASSWORD:-change-me-worker}
     depends_on:
       postgres:
         condition: service_healthy
@@ -50,6 +52,25 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+
+  worker:
+    # Combined image: includes git, the Entire CLI and tools/entire-agent-vendorwake for the Entire step.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.worker
+    command: ["python", "-m", "vendorwake.worker"]
+    env_file: .env
+    environment:
+      VW_DATABASE_URL: postgresql+psycopg://vendorwake_app:${VW_APP_DB_PASSWORD:-change-me-app}@postgres:5432/${POSTGRES_DB:-vendorwake}
+      # Role created by migration 0002; its password is set from VW_WORKER_DB_PASSWORD when `migrate` runs.
+      VW_WORKER_DATABASE_URL: postgresql+psycopg://vendorwake_worker:${VW_WORKER_DB_PASSWORD:-change-me-worker}@postgres:5432/${POSTGRES_DB:-vendorwake}
+      VW_TEMPORAL_ADDRESS: temporal:7233
+    stop_grace_period: 30s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      temporal:
+        condition: service_started
 
   frontend:
     build:

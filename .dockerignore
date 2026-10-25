@@ -1,0 +1,11 @@
+# Root build context (backend/Dockerfile.worker). Keep secrets and bulky local state out.
+.env
+.env.*
+!.env.example
+.git
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+spikes/

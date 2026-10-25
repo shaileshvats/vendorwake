@@ -123,3 +123,56 @@ def two_tenants(owner_engine: Engine) -> Iterator[dict[str, uuid.UUID]]:
         conn.execute(text("DELETE FROM users WHERE id IN (:a, :b)"), {"a": ids["user_a"], "b": ids["user_b"]})
         conn.execute(text("DELETE FROM vendor_changes WHERE id = :c"), {"c": change_id})
         conn.execute(text("DELETE FROM vendors WHERE id = :v"), {"v": vendor_id})
+
+
+# ---- 0002: worker role, workflow activities, routes ------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def worker_engine(migrated: None) -> Iterator[Engine]:
+    url = os.environ.get("VW_WORKER_DATABASE_URL")
+    if not url:
+        pytest.skip("needs VW_WORKER_DATABASE_URL (vendorwake_worker role; see migrations 0002)")
+    from vendorwake.db import session as db_session
+
+    db_session.get_worker_engine.cache_clear()
+    engine = create_engine(url, poolclass=NullPool)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture()
+def user_id(owner_engine: Engine) -> Iterator[uuid.UUID]:
+    """A fresh tenant; deleting it cascades to its repositories/investigations."""
+    from vendorwake.db.session import upsert_user
+
+    subject = f"test|wf-{uuid.uuid4().hex[:8]}"
+    uid = upsert_user(subject, None)
+    yield uid
+    with owner_engine.begin() as conn:
+        conn.execute(text("DELETE FROM users WHERE id = :u"), {"u": uid})
+
+
+@pytest.fixture()
+def clean_vendor(owner_engine: Engine) -> Iterator[str]:
+    """Remove the fake vendor (and, by cascade, its snapshots/changes/embeddings) after a test."""
+    from tests.integration.fakes import VENDOR
+
+    def wipe() -> None:
+        with owner_engine.begin() as conn:
+            conn.execute(
+                text(
+                    "DELETE FROM investigations WHERE change_id IN (SELECT c.id FROM vendor_changes c "
+                    "JOIN vendors v ON v.id = c.vendor_id WHERE v.name = :n)"
+                ),
+                {"n": VENDOR},
+            )
+            conn.execute(
+                text("DELETE FROM integrations WHERE vendor_id IN (SELECT id FROM vendors WHERE name = :n)"),
+                {"n": VENDOR},
+            )
+            conn.execute(text("DELETE FROM vendors WHERE name = :n"), {"n": VENDOR})
+
+    wipe()
+    yield VENDOR
+    wipe()

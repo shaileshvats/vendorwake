@@ -27,7 +27,7 @@ def test_upgrade_downgrade_upgrade(owner_engine: Engine, alembic_cfg: Config) ->
     assert remaining == 0
     command.upgrade(cfg, "head")
     with owner_engine.connect() as conn:
-        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0001"
+        assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0002"
 
 
 def test_schema_matches_models(owner_engine: Engine) -> None:

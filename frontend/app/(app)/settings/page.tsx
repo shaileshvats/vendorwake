@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
-import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
+import { SettingsTabs } from "@/components/settings-tabs";
+import { linkClass } from "@/components/ui";
 import { getCurrentUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -14,9 +16,10 @@ export default async function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Your account, organization, integrations, and notification preferences."
+        description="Your account, agent identities, and the permissions each agent holds."
       />
-      <div className="grid gap-4 md:grid-cols-2">
+      <SettingsTabs current="/settings" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Panel title="Account" description="From your Auth0 session.">
           {user ? (
             <dl className="divide-y divide-border text-sm">
@@ -35,11 +38,14 @@ export default async function SettingsPage() {
             </dl>
           ) : null}
         </Panel>
-        <Panel title="Integrations" description="GitHub and other connected services.">
-          <EmptyState title="No integrations configured." description="Integration settings are not available yet." />
-        </Panel>
-        <Panel title="Notifications" description="Where Vendorwake sends alerts about affected integrations.">
-          <EmptyState title="No notification channels configured." description="Notification settings are not available yet." />
+        <Panel title="Agent security" description="Auth0 machine identities for Vendorwake's agents.">
+          <p className="text-sm text-fg-muted">
+            See which scopes each agent holds and test what it is allowed to do on the{" "}
+            <Link href="/settings/security" className={linkClass}>
+              Security
+            </Link>{" "}
+            tab.
+          </p>
         </Panel>
       </div>
     </>

@@ -17,6 +17,11 @@ dependencies = [
     "pyjwt[crypto]>=2.10",
     "httpx>=0.28",
     "sentry-sdk[fastapi]>=2.73",
+    "packaging>=24",
+    "backboard-sdk==1.5.19",
+    "websockets>=13",
+    "temporalio>=1.34",
+    "fastembed>=0.4",
 ]
 
 [project.optional-dependencies]

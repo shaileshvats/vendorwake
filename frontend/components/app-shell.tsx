@@ -71,7 +71,7 @@ export function AppShell({ user, children }: { user: SessionUser; children: Reac
         <div className="flex-1 overflow-y-auto px-3 py-4">
           <SidebarNav onNavigate={() => setNavOpen(false)} />
         </div>
-        <div className="border-t border-border px-4 py-3 text-xs text-fg-subtle">Milestone M1 · foundation</div>
+        <div className="border-t border-border px-4 py-3 text-xs text-fg-subtle">Open source · upstream-to-impact</div>
       </aside>
 
       <div className="lg:pl-60">

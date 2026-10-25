@@ -34,6 +34,12 @@ export type ApiErrorKind =
   | "unauthorized"
   | "forbidden"
   | "not_found"
+  /** HTTP 409: the request conflicts with current state (e.g. already connected). */
+  | "conflict"
+  /** HTTP 422: the API rejected the request body. */
+  | "validation_error"
+  /** HTTP 503: a dependency (database, Temporal, a sponsor service) is unavailable or not configured. */
+  | "service_unavailable"
   | "server_error"
   | "http_error"
   /** The response body was not the expected JSON shape. */
@@ -44,6 +50,8 @@ export interface ApiError {
   message: string;
   /** HTTP status, when a response was received. */
   status?: number;
+  /** Machine-readable `error.code` from the API error body, when present. */
+  code?: string;
   /** Parsed JSON body of a non-2xx response, when available. */
   body?: unknown;
 }

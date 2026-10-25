@@ -8,7 +8,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from vendorwake import __version__
-from vendorwake.api.routes import api_router
+from vendorwake.api.routes import (
+    api_router,
+    changes,
+    investigations,
+    recommendations,
+    repositories,
+    security,
+    vendors,
+)
 from vendorwake.core.config import Settings, get_settings
 from vendorwake.core.exceptions import register_exception_handlers
 from vendorwake.core.logging import configure_logging
@@ -53,6 +61,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     register_exception_handlers(app)
     app.include_router(api_router, prefix="/api")
+    for module in (repositories, vendors, changes, investigations, recommendations, security):
+        app.include_router(module.router, prefix="/api")
     return app
 
 
