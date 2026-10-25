@@ -151,7 +151,15 @@ the business logic never imports a vendor SDK.
 - The 512 MB free instance can't also hold the ONNX embedding model, which got the container OOM-killed
   once. So "related past changes" (pgvector) runs locally, and is switched off on the hosted demo.
 
-<!-- My Agent Session: embed the DevRelay-saved session here with the agent_session tag, or link it. -->
+**Related reading on DEV:**
+
+- [Breaking API changes, turned into tested pull requests](https://dev.to/getversyka/breaking-api-changes-turned-into-tested-pull-requests-4o80)
+  by getversyka tackles the same pain from the pull-request side. Vendorwake's angle is the evidence
+  labels and an open-weight model.
+- [How to make an AI research agent label facts vs inferences — a deterministic provenance pipeline](https://dev.to/hexisteme/how-to-make-an-ai-research-agent-label-facts-vs-inferences-a-deterministic-provenance-pipeline-5dfn)
+  by hexisteme argues for the same split: the LLM extracts, deterministic code decides what counts as a fact.
+- [Connected Is Not Proven: Building an Evidence Graph That Admits What It Doesn't Know](https://dev.to/vivantejani/connected-is-not-proven-building-an-evidence-graph-that-admits-what-it-doesnt-know-4de5)
+  by vivantejani is the right instinct for evidence graphs: an edge needs a quote behind it.
 
 ## Why Open Innovation Matters
 
@@ -163,4 +171,9 @@ anyone can rerun the same investigation and get the same evidence.
 ## The Lazy Payoff
 
 I stopped reading changelogs. Vendorwake reads them, ignores the ones that don't touch my code, and opens
-the ones that do with the file, the line, the failing test and the patch already attached.
+the ones that do with the file, the line, the failing test and a proposed patch that has already been tested.
+
+For the Stripe upgrade, that work by hand would mean reading a 41-change release, grepping four files,
+setting up two virtualenvs, running the tests on both versions, writing patches and testing them again.
+Vendorwake did it in about 13 minutes while I wasn't watching, on free tiers. My part was reading one
+page and deciding whether to approve.
