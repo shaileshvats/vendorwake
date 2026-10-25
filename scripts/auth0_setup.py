@@ -71,9 +71,13 @@ API_SCOPES: dict[str, str] = {
     "patch:propose": "Propose a patch or migration branch for review",
     "repo:write": "Push branches or open pull requests (granted to no agent by default)",
 }
+# One M2M client per logical agent, each with only what its workflow steps require
+# (backend/vendorwake/workflows/activities.py `_require(...)` calls). No agent gets repo:write.
 AGENT_SCOPES: dict[str, list[str]] = {
     "discovery": ["docs:read"],
     "repository": ["repo:read"],
+    "impact": ["repo:read"],
+    "verification": ["repo:read"],
     "migration": ["repo:read", "patch:propose"],
 }
 

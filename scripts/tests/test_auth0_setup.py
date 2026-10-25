@@ -131,15 +131,18 @@ def test_first_run_creates_everything_and_writes_env(env_path):
     ]
     assert web["allowed_logout_urls"] == ["http://localhost:3000", "https://vendorwake-web.onrender.com"]
     assert web["grant_types"] == ["authorization_code", "refresh_token"]
-    for agent in ("discovery", "repository", "migration"):
+    for agent in auth0_setup.AGENT_SCOPES:
         c = by_name[f"Vendorwake Agent: {agent}"]
         assert c["app_type"] == "non_interactive" and c["grant_types"] == ["client_credentials"]
     grants = {fake.clients[g["client_id"]]["name"]: sorted(g["scope"]) for g in fake.grants.values()}
     assert grants == {
         "Vendorwake Agent: discovery": ["docs:read"],
         "Vendorwake Agent: repository": ["repo:read"],
+        "Vendorwake Agent: impact": ["repo:read"],
+        "Vendorwake Agent: verification": ["repo:read"],
         "Vendorwake Agent: migration": ["patch:propose", "repo:read"],
     }
+    assert not any("repo:write" in scopes for scopes in grants.values())  # no agent may push
 
     env = envfile.load(env_path)
     assert env["AUTH0_CLIENT_ID"] == web["client_id"]
@@ -147,7 +150,7 @@ def test_first_run_creates_everything_and_writes_env(env_path):
     assert len(env["AUTH0_SECRET"]) == 64 and env["OTHER"] == "keep-me"
     assert env["VW_AUTH0_DOMAIN"] == DOMAIN and env["AUTH0_AUDIENCE"] == AUD
     creds = json.loads(env["VW_AUTH0_AGENT_CREDENTIALS"])
-    assert set(creds) == {"discovery", "repository", "migration"}
+    assert set(creds) == set(auth0_setup.AGENT_SCOPES)
     assert creds["migration"]["client_secret"].startswith("secret-of-")
     assert " " not in env["VW_AUTH0_AGENT_CREDENTIALS"]  # compact JSON
     assert stat.S_IMODE(os.stat(env_path).st_mode) == 0o600
