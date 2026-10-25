@@ -15,9 +15,10 @@ classes and cut major versions, and I usually find out when production does.
 to, and only bothers me when a change actually reaches my code. It doesn't just say "Stripe shipped
 16.0.0." It says:
 
-> `payments/refunds.py:4` uses `stripe.Reversal`, which 16.0.0 renamed to `stripe.TransferReversal`.
-> **Confirmed:** the fixture's test passes on 15.6.1 and fails on 16.0.0 with `AttributeError`. Here is the
-> one-line patch, and the test passes again with it applied.
+> `billing/invoices.py:10` calls `invoice.request(...)`, which 16.0.0 removed.
+> **Confirmed:** the fixture's tests pass on 15.6.1 and fail on 16.0.0
+> (`AttributeError: request. Did you mean: '_request'?`). Here are the proposed patches, and here is what
+> happened when I ran them.
 
 Every finding carries one of three labels, and the label means something:
 
@@ -31,9 +32,10 @@ not in the prompt.
 
 ## Demo
 
-- **Live app:** <!-- FILL: https://vendorwake-web.onrender.com -->
-- **API docs:** <!-- FILL: https://vendorwake-api.onrender.com/api/docs -->
-- **Walkthrough:** <!-- FILL: video link or screenshots of the investigation page -->
+- **Live app:** https://vendorwake-web.onrender.com (free Render tier: the first request after a quiet
+  period takes about a minute while the service wakes up)
+- **API docs:** https://vendorwake-api.onrender.com/api/docs
+- **Walkthrough:** <!-- FILL: screenshots or a short video of the investigation page -->
 
 The demo investigation is a real upstream change: **stripe-python 16.0.0** (released 2026-09-30) against a
 small billing fixture pinned to 15.6.1. All three breaking changes reproduce offline:
@@ -44,7 +46,37 @@ small billing fixture pinned to 15.6.1. All three breaking changes reproduce off
 | `StripeObject.request()` removed | exists | `AttributeError` |
 | Path params positional-only | keyword accepted | `TypeError: ... positional-only arguments passed as keyword` |
 
-<!-- FILL: real numbers from the hosted run: files scanned, findings by status, tokens, latency -->
+**What the hosted run actually produced** (one investigation, end to end, on free tiers):
+
+1. **Repository analysis** found `stripe==15.6.1` in `requirements.txt` (95% detection confidence) and
+   every reference by file and line: `stripe.Reversal` in `payouts.py`, `invoice.request(...)` in
+   `invoices.py`, `customers.retrieve(customer=...)` in `customers.py`, plus `catalog.py`, which uses
+   Stripe but none of the affected APIs.
+2. **Discovery** ran two SerpApi searches, fetched the official changelog, hashed it into a TimescaleDB
+   snapshot, and had Gemma 4 extract **41 changes** from the 16.0.0 release. The grounding check accepted
+   the important ones with verbatim quotes, and flagged **4 quotes and 10 symbols** that Gemma had reworded
+   (for example, it glued a class path onto a field name). So the change is marked *needs human review*
+   instead of pretending to be clean.
+3. **Version comparison:** in a fresh virtualenv, the fixture's tests **passed on 15.6.1 and failed on
+   16.0.0**. That failing test is the deterministic evidence behind **Confirmed** (5 deterministic
+   evidence items and 1 model inference on the `invoices.py` finding).
+4. **Patches:** Gemma proposed one diff per affected file. The `stripe.Reversal` →
+   `stripe.TransferReversal` diff is exactly right. Then the sandbox ran the tests with every patch applied
+   on 16.0.0: **3 passed, 1 failed**. Gemma had replaced `invoice.request(...)` with `raw_request(...)`,
+   which returns a raw `StripeResponse`, so `sent.id` blew up. The recommendation is labelled
+   **"Verified: failed"**, and nothing is applied: approving a patch only records the decision.
+5. **Follow-up:** I asked "Which file breaks first if we upgrade without any patch?" Backboard retrieved
+   the investigation's memory, and Gemma answered that the context doesn't say. It declined to make up an
+   ordering, and the UI shows the one memory it used.
+6. **Provenance:** a Sentry trace with **315 spans** (version comparison 2.8 min, assessment 1.3 min,
+   patch proposal 7.4 min on Google's free tier), an Entire checkpoint linked to the migration agent's
+   commit, and the Temporal workflow and run IDs. All are linked from the investigation page.
+7. **Permissions:** on Settings → Security, the migration agent asking to `push_branch` is **denied**
+   (`repo:write` missing), and `propose_patch` is **allowed**. Both use real Auth0 tokens.
+
+One flaw I'm leaving visible: the model-written *summary* mentions a `KeyError` that no test produced. The
+verdicts come from deterministic evidence, but the narrative is still model text, so the page labels it as
+such.
 
 ## Code
 
@@ -114,8 +146,11 @@ the business logic never imports a vendor SDK.
   free plan, so approvals are in-app.
 - Verification runs only for allow-listed repos, and on free hosting the sandbox can't fully cut network
   access. The environment string on every result says so.
-- On free Render, Temporal runs embedded and loses its history when the service sleeps. Reports and
-  timelines live in Postgres, so nothing user-visible is lost.
+- On free Render, Temporal runs embedded and loses its history when the service sleeps or redeploys.
+  Reports and timelines live in Postgres, but an investigation that was mid-flight during a redeploy stays
+  stuck at "running".
+- The 512 MB free instance can't also hold the ONNX embedding model, which got the container OOM-killed
+  once. So "related past changes" (pgvector) runs locally, and is switched off on the hosted demo.
 
 <!-- My Agent Session: embed the DevRelay-saved session here with the agent_session tag, or link it. -->
 
