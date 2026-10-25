@@ -27,6 +27,9 @@ INVALID_INPUT = "InvalidInput"
 #: Model/provider quota exhausted (free tiers: ~50 requests/day). Retrying within minutes cannot help; re-run
 #: the investigation later and completed steps are reused.
 RATE_LIMITED = "RateLimited"
+#: Per-minute model quota hit (e.g. Google AI Studio free tier: 16K tokens/min). Retryable, with the
+#: provider's retry delay; completed steps are persisted, so a retry never re-sends finished work.
+MODEL_RATE_LIMITED_RETRY = "ModelRateLimitedRetry"
 NON_RETRYABLE_ERRORS = [PERMISSION_DENIED, ADAPTER_UNAVAILABLE, NOT_FOUND, INVALID_INPUT, RATE_LIMITED]
 
 # ----------------------------------------------------------------------------------------- activity names

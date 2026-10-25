@@ -25,6 +25,7 @@ import subprocess  # noqa: S404 (fixed git argv only, for the Entire worktree)
 import tempfile
 import uuid
 from collections.abc import Callable
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -90,9 +91,18 @@ def _translate(fn: Callable[[], Any]) -> Any:
         name = type(exc).__name__  # integrations/llm error classes, matched by name to keep imports lazy
         if name == "NotConfiguredError":
             raise _non_retryable(str(exc), t.ADAPTER_UNAVAILABLE) from exc
-        if name in ("RateLimitedError", "ToolPermissionDenied"):
-            error_type = t.RATE_LIMITED if name == "RateLimitedError" else t.PERMISSION_DENIED
-            raise _non_retryable(f"{name}", error_type) from exc
+        if name == "RateLimitedError":
+            # Per-minute model quotas (Google AI Studio free tier) reset quickly: retry after the window
+            # instead of failing the workflow. Completed steps are persisted, so nothing is re-sent.
+            delay = getattr(exc, "retry_after_s", None) or 60.0
+            raise ApplicationError(
+                f"model rate limited; retrying in {delay:.0f}s",
+                type=t.MODEL_RATE_LIMITED_RETRY,
+                non_retryable=False,
+                next_retry_delay=timedelta(seconds=min(max(delay, 15.0), 120.0)),
+            ) from exc
+        if name == "ToolPermissionDenied":
+            raise _non_retryable(f"{name}", t.PERMISSION_DENIED) from exc
         raise
 
 

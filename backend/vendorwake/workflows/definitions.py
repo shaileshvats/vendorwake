@@ -36,7 +36,7 @@ _MODEL = RetryPolicy(
     initial_interval=timedelta(seconds=30),
     backoff_coefficient=2.0,
     maximum_interval=timedelta(minutes=5),
-    maximum_attempts=3,
+    maximum_attempts=6,  # per-minute model quotas: a few spaced retries (next_retry_delay) succeed
     non_retryable_error_types=t.NON_RETRYABLE_ERRORS,
 )
 _BEST_EFFORT = RetryPolicy(

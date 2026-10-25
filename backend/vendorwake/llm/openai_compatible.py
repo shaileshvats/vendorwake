@@ -89,6 +89,76 @@ def provider_name_for(base_url: str) -> str:
 
 
 _THINKING_HEADROOM_TOKENS = 2048
+# Google AI Studio's free tier allows 16K tokens/minute per Gemma model (aistudio.google.com/rate-limit,
+# checked 2026-10-25); pace below that so calls wait instead of failing with 429.
+_DEFAULT_TPM = {"google_ai_studio": 14_000}
+_ESTIMATED_OUTPUT_TOKENS = 1_500
+
+
+class _TokenWindow:
+    """Thread-safe sliding 60 s token budget shared by every client calling the same endpoint+model."""
+
+    def __init__(self, limit: int, clock: Callable[[], float] = time.monotonic) -> None:
+        self.limit = limit
+        self._clock = clock
+        self._events: list[tuple[float, int]] = []
+        self._lock = threading.Lock()
+
+    def _used(self, now: float) -> int:
+        self._events = [(t, n) for t, n in self._events if now - t < 60.0]
+        return sum(n for _, n in self._events)
+
+    def acquire(self, tokens: int, sleep: Callable[[float], None]) -> float:
+        """Block until ``tokens`` fit in the window; returns the seconds waited."""
+        tokens = min(tokens, self.limit)  # an oversized request still runs, alone in its window
+        waited = 0.0
+        while True:
+            with self._lock:
+                now = self._clock()
+                if self._used(now) + tokens <= self.limit:
+                    self._events.append((now, tokens))
+                    return waited
+                wait = max(0.5, 60.0 - (now - self._events[0][0]))
+            sleep(wait)
+            waited += wait
+
+
+_WINDOWS: dict[tuple[str, str], _TokenWindow] = {}
+_WINDOWS_LOCK = threading.Lock()
+
+
+def _window_for(base_url: str, model: str, limit: int) -> _TokenWindow:
+    with _WINDOWS_LOCK:
+        key = (base_url, model)
+        if key not in _WINDOWS or _WINDOWS[key].limit != limit:
+            _WINDOWS[key] = _TokenWindow(limit)
+        return _WINDOWS[key]
+
+
+def _estimate_tokens(body: dict[str, Any]) -> int:
+    prompt_chars = sum(len(m.get("content") or "") for m in body.get("messages", []))
+    return prompt_chars // 3 + min(int(body.get("max_tokens") or 0), _ESTIMATED_OUTPUT_TOKENS)
+
+
+def _google_retry_delay(response: httpx.Response) -> float | None:
+    """Google's 429 body carries ``RetryInfo.retryDelay`` (e.g. "37s") instead of a Retry-After header."""
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    items = payload if isinstance(payload, list) else [payload]
+    for item in items:
+        details = (item.get("error") or {}).get("details") if isinstance(item, dict) else None
+        for detail in details or []:
+            delay = detail.get("retryDelay") if isinstance(detail, dict) else None
+            if isinstance(delay, str) and delay.endswith("s"):
+                try:
+                    return float(delay[:-1])
+                except ValueError:
+                    return None
+    return None
+
+
 _THOUGHT_BLOCK = re.compile(r"<thought>.*?(</thought>|$)", re.DOTALL)
 
 
@@ -170,8 +240,9 @@ class OpenAICompatibleLLM:
         structured_mode: StructuredMode | None = None,
         fallback_model: str | None = None,
         timeout_s: float = 120.0,
-        max_retries: int = 2,
-        max_retry_wait_s: float = 30.0,
+        max_retries: int | None = None,
+        max_retry_wait_s: float | None = None,
+        tokens_per_minute: int | None = None,
         cache: _ResponseCache | None = RESPONSE_CACHE,
         client: httpx.Client | None = None,
         sleep: Callable[[float], None] = time.sleep,
@@ -182,8 +253,14 @@ class OpenAICompatibleLLM:
         self.provider = provider_name_for(self.base_url)
         self._explicit_mode = structured_mode
         self._api_key = api_key.get_secret_value() if isinstance(api_key, SecretStr) else api_key
-        self._max_retries = max_retries
-        self._max_retry_wait_s = max_retry_wait_s
+        per_minute_quota = self.provider == "google_ai_studio"
+        # Per-minute quotas reset within a minute, so it is worth waiting them out a few times.
+        self._max_retries = max_retries if max_retries is not None else (3 if per_minute_quota else 2)
+        self._max_retry_wait_s = (
+            max_retry_wait_s if max_retry_wait_s is not None else (65.0 if per_minute_quota else 30.0)
+        )
+        tpm = tokens_per_minute if tokens_per_minute is not None else _DEFAULT_TPM.get(self.provider, 0)
+        self._tpm = tpm if tpm and tpm > 0 else 0
         self._cache = cache
         self._client = client or httpx.Client(timeout=timeout_s)
         self._sleep = sleep
@@ -196,7 +273,7 @@ class OpenAICompatibleLLM:
             "model": settings.llm_model,
             "api_key": settings.llm_api_key,
         }
-        for name in ("llm_structured_mode", "llm_fallback_model"):  # optional settings, if ever added
+        for name in ("llm_structured_mode", "llm_fallback_model", "llm_tokens_per_minute"):
             if getattr(settings, name, None):
                 values[name.removeprefix("llm_")] = getattr(settings, name)
         values.update(overrides)
@@ -385,8 +462,13 @@ class OpenAICompatibleLLM:
         self, model: str, agent: str, body: dict[str, Any], headers: dict[str, str]
     ) -> dict[str, Any]:
         url = f"{self.base_url}/chat/completions"
+        window = _window_for(self.base_url, model, self._tpm) if self._tpm else None
         for attempt in range(self._max_retries + 1):
             last = attempt == self._max_retries
+            if window is not None:
+                waited = window.acquire(_estimate_tokens(body), self._sleep)
+                if waited:
+                    logger.info("paced %s call for %s by %.0fs (TPM quota)", model, agent, waited)
             try:
                 response = self._client.post(url, json=body, headers=headers)
             except httpx.HTTPError as exc:
@@ -401,6 +483,8 @@ class OpenAICompatibleLLM:
 
             if response.status_code == 429:
                 retry_after = _retry_after_seconds(response)
+                if retry_after is None and self.provider == "google_ai_studio":
+                    retry_after = _google_retry_delay(response) or 60.0  # per-minute window
                 if last or (retry_after is not None and retry_after > self._max_retry_wait_s):
                     raise RateLimitedError(
                         f"{agent}: rate limited by {self.provider}: {_provider_error(response)}",
