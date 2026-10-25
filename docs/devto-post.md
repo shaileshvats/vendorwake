@@ -84,6 +84,49 @@ such.
 Apache-2.0. FastAPI + Temporal + PostgreSQL/TimescaleDB/pgvector + Next.js, with an adapter per sponsor so
 the business logic never imports a vendor SDK.
 
+## Prize Categories
+
+I'm entering ten categories. Each sponsor does a real job in the hosted run above, and this is where to
+check it.
+
+- **Best Use of Gemma:** Gemma 4 (`gemma-4-31b-it`, falling back to `gemma-4-26b-a4b-it`) does every
+  model step: extraction, impact rationale, the evidence graph, patches and follow-up answers. It runs on
+  Google AI Studio's free tier through an OpenAI-compatible adapter, so pointing it at vLLM or Ollama is a
+  config change.
+- **Best Use of Render:** the whole app runs on Render's free tier. One service is the Next.js front end;
+  the other is the API container that runs the agents, the Temporal worker and the test sandbox.
+  `scripts/deploy_render.py` creates both services and their settings through Render's API.
+- **Best Use of Auth0 for AI Agents:** users sign in with Auth0, and each agent (discovery, repository,
+  impact, verification, migration) has its own machine identity with only the scopes its steps need.
+  Every tool call is checked against that agent's real token, so the migration agent's `push_branch` is
+  denied and `propose_patch` is allowed. Approving a patch is a human step, done in-app because Auth0's
+  async approval isn't on the free plan.
+- **Best Use of Backboard:** memory and retrieval for an open-source assistant. Backboard stores each
+  investigation's findings and retrieves the relevant ones for a follow-up question; Gemma answers only
+  from what came back, and the UI lists the memories it used.
+- **Best Use of Browserbase:** when a vendor's docs page is a JavaScript shell, a real Browserbase session
+  renders it. The session ID is kept as evidence next to the text Gemma reasons over.
+- **Best Use of Entire:** the migration agent's work on each investigation is recorded as an Entire
+  session (each model turn with its token counts, then a commit of the proposed patches), and the
+  checkpoint is linked from the investigation page, so you can see why a patch exists.
+- **Best Use of Sentry Agent Tracing:** each investigation is one trace, with a `gen_ai.invoke_agent` span
+  per agent and `chat` / `execute_tool` spans under it carrying the model, provider and token counts.
+  The demo run's trace has 315 spans. Patch proposal took longest (7.4 min) because the adapter paces
+  Gemma calls to the free tier's 16K tokens per minute; version comparison (2.8 min) is installing two
+  Stripe versions and running the tests. Model cost: $0. Prompt text is never attached. Debugging it
+  taught me something too (below): my first trace check found zero spans.
+- **Best Use of SerpApi:** live search for each vendor's release announcements. A result only points
+  Vendorwake at a page; it then fetches the text itself from the vendor's official domains, so a search
+  hit is never treated as proof.
+- **Best Use of Temporal:** analysis, discovery, investigation and verification are Temporal workflows.
+  Each step saves its output before returning, so a restarted worker carries on without calling the model
+  again. When Google's free tier answers 429, the activity retries after the delay Google asks for
+  instead of failing the investigation, as my first runs did.
+- **Best Use of Tiger Data:** Postgres on Tiger Cloud. Every fetched vendor page is a row in a
+  TimescaleDB hypertable, hashed so unchanged pages are skipped. Row-level security is forced on every
+  tenant table and keyed to the signed-in user. pgvector stores open-weight `bge-small` embeddings for
+  "related past changes" (switched off on the hosted demo; see below).
+
 ## How I Built It
 
 **Deterministic code builds the evidence; the open-weight model interprets it.**
@@ -105,27 +148,6 @@ the business logic never imports a vendor SDK.
 5. **Migration and verification.** Gemma proposes a unified diff per affected file. Vendorwake checks that
    the diff applies, then runs the fixture's tests in a fresh virtualenv before the upgrade, after it, and
    after the patch. Patches are never pushed: no agent identity holds `repo:write`.
-
-**The sponsors each do one real job:**
-
-- **Gemma 4 (open-weight):** extraction, impact rationale, patches and follow-up answers. It runs on
-  Google AI Studio's free tier through an OpenAI-compatible adapter, so swapping in vLLM or Ollama is a
-  config change.
-- **Temporal:** durable workflows for analysis, discovery and investigation. Every step persists its
-  output before returning, so a restarted worker resumes without re-calling the model.
-- **Tiger Data:** Postgres with TimescaleDB snapshots, pgvector "related past changes" (open-weight
-  `bge-small` embeddings computed in-process), and row-level security on every tenant table.
-- **Auth0:** user login, plus **one machine identity per agent** (discovery, repository, impact,
-  verification, migration), each with only the scopes its steps need. The Settings → Security page asks
-  for a real token and shows the denial when the migration agent tries to push.
-- **Backboard:** investigation memory. Follow-up questions ("which file breaks first?") retrieve what was
-  found earlier instead of guessing, and the UI shows exactly which memories were used.
-- **Browserbase:** real browser sessions for JavaScript-rendered docs, with the session ID kept as evidence.
-- **SerpApi:** discovery, clearly labelled "discovery, not proof".
-- **Sentry:** agent tracing, with `gen_ai.invoke_agent` → `chat` / `execute_tool` spans carrying real
-  token counts. Prompt text is never attached.
-- **Entire:** the migration agent's session is recorded as an Entire checkpoint through a small adapter
-  for Entire's agent-integration protocol, linked from the investigation page.
 
 **Things that surprised me while building on free plans only:**
 
