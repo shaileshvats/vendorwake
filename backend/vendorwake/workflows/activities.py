@@ -385,6 +385,11 @@ class DiscoveryActivities(_Base):
             return _translate(lambda: self._embed(change_id))
 
     def _embed(self, change_id: uuid.UUID) -> bool:
+        if not self.settings.embeddings_enabled:
+            # 512 MB hosts (free Render) cannot also load the ONNX embedding model next to the API,
+            # worker and embedded Temporal; related-change search is then simply unavailable there.
+            logger.info("embeddings disabled (VW_EMBEDDINGS_ENABLED=false); skipping change %s", change_id)
+            return False
         with worker_session() as ws:
             if ws.get(ChangeEmbedding, change_id) is not None:
                 return False

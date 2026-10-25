@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     # Open-weight embedding model run in-process (fastembed / ONNX); dimension must match the DB column
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_dim: int = 384
+    embeddings_enabled: bool = True  # false on 512 MB hosts: the ONNX model does not fit next to the stack
 
     # Sponsor integrations
     serpapi_api_key: SecretStr | None = None

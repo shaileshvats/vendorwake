@@ -49,8 +49,10 @@ _DB_TIMEOUT = timedelta(seconds=30)
 
 _STEP_POLICIES: dict[str, tuple[timedelta, RetryPolicy]] = {
     t.STEP_UPGRADE_CHECK: (timedelta(minutes=10), _NETWORK),
-    t.STEP_ASSESSMENT: (timedelta(minutes=5), _MODEL),
-    t.STEP_PATCH: (timedelta(minutes=5), _MODEL),
+    # Model steps make several paced calls (free-tier TPM quota, provider 5xx retries, fallback model),
+    # one per affected file for patches, so they get generous per-attempt time.
+    t.STEP_ASSESSMENT: (timedelta(minutes=20), _MODEL),
+    t.STEP_PATCH: (timedelta(minutes=20), _MODEL),
     t.STEP_VERIFICATION: (timedelta(minutes=10), _NETWORK),  # sandbox run + finalize
     t.STEP_AGENT_SESSION: (timedelta(minutes=2), _BEST_EFFORT),
     t.STEP_CONTEXT_SEED: (timedelta(minutes=2), _BEST_EFFORT),
