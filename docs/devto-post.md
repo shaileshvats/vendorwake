@@ -35,7 +35,6 @@ not in the prompt.
 - **Live app:** https://vendorwake-web.onrender.com (free Render tier: the first request after a quiet
   period takes about a minute while the service wakes up)
 - **API docs:** https://vendorwake-api.onrender.com/api/docs
-- **Walkthrough:** <!-- FILL: screenshots or a short video of the investigation page -->
 
 The demo investigation is a real upstream change: **stripe-python 16.0.0** (released 2026-09-30) against a
 small billing fixture pinned to 15.6.1. All three breaking changes reproduce offline:
